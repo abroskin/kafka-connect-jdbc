@@ -235,6 +235,21 @@ public class JdbcSinkConfig extends AbstractConfig {
       + "support writing to views, and when they do the the sink connector will fail if the "
       + "view definition does not match the records' schemas (regardless of ``"
       + AUTO_EVOLVE + "``).";
+  public static final String MAX_SLEEP_AFTER_PUT_MS = "max.sleep.after.put.ms";
+  private static final int MAX_SLEEP_AFTER_PUT_MS_DEFAULT = 0;
+  private static final String MAX_SLEEP_AFTER_PUT_MS_DOC =
+      "If greater than 0, adds sleep at the end of the ``put`` method. "
+      + "Sleep interval is inversely proportional to the number of inserted records, "
+      + "with the highest value of given ``max.sleep.after.put.ms`` when no records "
+      + "were inserted and the lowest value ``min.sleep.after.put.ms`` when the number of "
+      + "inserted records were equal or greater than ``batch.size``.";
+  private static final String MAX_SLEEP_AFTER_PUT_MS_DISPLAY = "Max sleep time after put";
+
+  public static final String MIN_SLEEP_AFTER_PUT_MS = "min.sleep.after.put.ms";
+  private static final int MIN_SLEEP_AFTER_PUT_MS_DEFAULT = 0;
+  private static final String MIN_SLEEP_AFTER_PUT_MS_DOC =
+      "Defines a minimum sleep interval at the end of the ``put`` method.";
+  private static final String MIN_SLEEP_AFTER_PUT_MS_DISPLAY = "Min sleep time after put";
 
   private static final EnumRecommender QUOTE_METHOD_RECOMMENDER =
       EnumRecommender.in(QuoteMethod.values());
@@ -336,6 +351,26 @@ public class JdbcSinkConfig extends AbstractConfig {
             4,
             ConfigDef.Width.MEDIUM,
             TABLE_TYPES_DISPLAY
+        ).define(
+            MAX_SLEEP_AFTER_PUT_MS,
+            ConfigDef.Type.INT,
+            MAX_SLEEP_AFTER_PUT_MS_DEFAULT,
+            ConfigDef.Importance.MEDIUM,
+            MAX_SLEEP_AFTER_PUT_MS_DOC, WRITES_GROUP,
+            5,
+            ConfigDef.Width.SHORT,
+            MAX_SLEEP_AFTER_PUT_MS_DISPLAY,
+            DeleteEnabledRecommender.INSTANCE
+        ).define(
+            MIN_SLEEP_AFTER_PUT_MS,
+            ConfigDef.Type.INT,
+            MIN_SLEEP_AFTER_PUT_MS_DEFAULT,
+            ConfigDef.Importance.MEDIUM,
+            MIN_SLEEP_AFTER_PUT_MS_DOC, WRITES_GROUP,
+            6,
+            ConfigDef.Width.SHORT,
+            MIN_SLEEP_AFTER_PUT_MS_DISPLAY,
+            DeleteEnabledRecommender.INSTANCE
         )
         // Data Mapping
         .define(
@@ -459,6 +494,8 @@ public class JdbcSinkConfig extends AbstractConfig {
   public final String tableNameFormat;
   public final int batchSize;
   public final boolean deleteEnabled;
+  public final int minSleepAfterPutMs;
+  public final int maxSleepAfterPutMs;
   public final int maxRetries;
   public final int retryBackoffMs;
   public final boolean autoCreate;
@@ -480,6 +517,8 @@ public class JdbcSinkConfig extends AbstractConfig {
     tableNameFormat = getString(TABLE_NAME_FORMAT).trim();
     batchSize = getInt(BATCH_SIZE);
     deleteEnabled = getBoolean(DELETE_ENABLED);
+    minSleepAfterPutMs = getInt(MIN_SLEEP_AFTER_PUT_MS);
+    maxSleepAfterPutMs = getInt(MAX_SLEEP_AFTER_PUT_MS);
     maxRetries = getInt(MAX_RETRIES);
     retryBackoffMs = getInt(RETRY_BACKOFF_MS);
     autoCreate = getBoolean(AUTO_CREATE);

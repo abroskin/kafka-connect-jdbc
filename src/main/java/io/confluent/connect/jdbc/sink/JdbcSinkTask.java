@@ -15,6 +15,8 @@
 
 package io.confluent.connect.jdbc.sink;
 
+import io.confluent.connect.jdbc.dialect.DatabaseDialect;
+import io.confluent.connect.jdbc.dialect.DatabaseDialects;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -27,9 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
-
-import io.confluent.connect.jdbc.dialect.DatabaseDialect;
-import io.confluent.connect.jdbc.dialect.DatabaseDialects;
+import java.util.concurrent.TimeUnit;
 
 public class JdbcSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcSinkTask.class);
@@ -96,6 +96,25 @@ public class JdbcSinkTask extends SinkTask {
       }
     }
     remainingRetries = config.maxRetries;
+
+    int sleepTime = config.minSleepAfterPutMs;
+    if (config.maxSleepAfterPutMs > 0) {
+      int minRecords = Math.min(config.batchSize, recordsCount);
+      double sleepRatio = 1.0;
+      if (minRecords > 0) {
+        sleepRatio = 1.0 - minRecords / (double) config.batchSize;
+      }
+      sleepTime = Math.max(
+        sleepTime, (int) (config.maxSleepAfterPutMs * sleepRatio));
+    }
+    try {
+      log.info("Processed {} records for the topic {}. Sleep for {} ms",
+               recordsCount, first.topic(), sleepTime);
+      TimeUnit.MILLISECONDS.sleep(sleepTime);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
