@@ -27,12 +27,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 public class JdbcSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(JdbcSinkTask.class);
+
+  private Queue<Integer> recordsCountHistory = new LinkedList<Integer>();
 
   DatabaseDialect dialect;
   JdbcSinkConfig config;
@@ -97,16 +102,7 @@ public class JdbcSinkTask extends SinkTask {
     }
     remainingRetries = config.maxRetries;
 
-    int sleepTime = config.minSleepAfterPutMs;
-    if (config.maxSleepAfterPutMs > 0) {
-      int minRecords = Math.min(config.batchSize, recordsCount);
-      double sleepRatio = 1.0;
-      if (minRecords > 0) {
-        sleepRatio = 1.0 - minRecords / (double) config.batchSize;
-      }
-      sleepTime = Math.max(
-        sleepTime, (int) (config.maxSleepAfterPutMs * sleepRatio));
-    }
+    int sleepTime = getSleepTime(recordsCount);
     try {
       log.info("Processed {} records for the topic {}. Sleep for {} ms",
                recordsCount, first.topic(), sleepTime);
@@ -115,6 +111,22 @@ public class JdbcSinkTask extends SinkTask {
       Thread.currentThread().interrupt();
       throw new RuntimeException(e);
     }
+  }
+
+  private int getSleepTime(int currentRecordsCount) {
+    // Add the number of inserted records to the history queue
+    recordsCountHistory.add(currentRecordsCount);
+    if (recordsCountHistory.size() > 20) {
+      // Keep the last 20 records in the queue
+      recordsCountHistory.remove();
+    }
+
+    if (config.maxSleepAfterPutMs > 0) {
+      int minRecords = Math.min(config.batchSize, Collections.max(recordsCountHistory));
+      double sleepRatio = 1.0 - minRecords / (double) config.batchSize;
+      return Math.max(config.minSleepAfterPutMs, (int) (config.maxSleepAfterPutMs * sleepRatio));
+    }
+    return config.minSleepAfterPutMs;
   }
 
   @Override
